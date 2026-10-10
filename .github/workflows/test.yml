@@ -1,0 +1,115 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 2
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: xcode-27
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Apple Clang
+            compiler: apple
+            modules: OFF
+            sanitize: OFF
+          - name: Apple Clang sanitizers
+            compiler: apple
+            modules: OFF
+            sanitize: ON
+          - name: LLVM modules
+            compiler: llvm
+            modules: ON
+            sanitize: OFF
+            include_directory: headers
+          - name: GCC reflection and modules
+            compiler: gcc
+            modules: ON
+            sanitize: OFF
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Install build tools
+        run: brew install cmake ninja
+      - name: Select Apple Clang
+        if: matrix.compiler == 'apple'
+        run: echo 'CXX=/usr/bin/clang++' >> "$GITHUB_ENV"
+      - name: Install LLVM
+        if: matrix.compiler == 'llvm'
+        run: |
+          brew install llvm
+          echo "CXX=$(brew --prefix llvm)/bin/clang++" >> "$GITHUB_ENV"
+      - name: Install GCC
+        if: matrix.compiler == 'gcc'
+        run: |
+          brew install gcc
+          echo "CXX=$(brew --prefix gcc)/bin/g++-16" >> "$GITHUB_ENV"
+          echo 'CXXFLAGS=-std=c++26 -freflection' >> "$GITHUB_ENV"
+      - name: Configure
+        run: cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Debug -DSOML_MODULE=${{ matrix.modules }} -DSOML_SANITIZE=${{ matrix.sanitize }} -DCMAKE_INSTALL_INCLUDEDIR=${{ matrix.include_directory || 'include' }} -DCMAKE_INSTALL_PREFIX="$GITHUB_WORKSPACE/build/install"
+      - name: Build
+        run: cmake --build build/ci
+      - name: Test
+        run: ctest --test-dir build/ci --output-on-failure --no-tests=error
+      - name: Install
+        run: cmake --install build/ci
+      - name: Build installed consumers
+        run: |
+          cmake -S test_package -B build/consumer -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/build/install" -DSOML_TEST_MODULE=${{ matrix.modules }}
+          cmake --build build/consumer
+          ctest --test-dir build/consumer --output-on-failure --no-tests=error
+
+  packages:
+    name: Conan and vcpkg consumers
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      CC: /usr/bin/clang
+      CXX: /usr/bin/clang++
+      CONAN_HOME: ${{ github.workspace }}/build/conan-home
+      VCPKG_ROOT: ${{ github.workspace }}/build/vcpkg
+      VCPKG_DISABLE_METRICS: 1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install build tools
+        run: brew install cmake ninja conan
+      - name: Test Conan package
+        run: |
+          conan profile detect
+          conan create . -s compiler.cppstd=26 --no-remote
+      - name: Check out vcpkg
+        uses: actions/checkout@v7
+        with:
+          repository: microsoft/vcpkg
+          ref: e456309491fd875487bf02b8a0dca76c1b1b00cc
+          path: build/vcpkg
+          persist-credentials: false
+      - name: Test vcpkg package
+        run: |
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+          "$VCPKG_ROOT/vcpkg" install soml:arm64-osx --overlay-ports="$GITHUB_WORKSPACE/packaging/vcpkg" --no-binarycaching
+          cmake -S test_package -B build/vcpkg-consumer -G Ninja -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=arm64-osx
+          cmake --build build/vcpkg-consumer
+          ctest --test-dir build/vcpkg-consumer --output-on-failure --no-tests=error

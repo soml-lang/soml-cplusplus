@@ -1,0 +1,5 @@
+* text=auto eol=lf
+# The conformance cases include carriage returns and invalid UTF-8 on purpose.
+tests/conformance/** -text linguist-vendored
+# The benchmark fixtures are a copy of the soml repository's, for development only.
+bench/fixtures/** export-ignore

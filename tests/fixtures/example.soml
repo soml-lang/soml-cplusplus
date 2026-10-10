@@ -1,0 +1,62 @@
+/*
+Everything SOML can express, in one document. A document may also be a top-level array.
+*/
+
+# Keys are bare. Dashes are allowed, so no key needs quotes.
+name: 'soml'
+release-date: 2026-09-19T14:00:00Z
+'the name': 'quotes are the escape hatch, when a key needs spaces'
+404: 'and a key may begin with a digit'
+
+# Strings: '...' is literal, "..." is escaped. Use ' by default.
+regex: '^\d{4}-\d{2}-\d{2}$'
+windows-path: 'C:\Users\sindre\dev'
+shell: 'echo "$HOME" | tr -d "\n"'
+escaped: "line one\nline two\t\"quoted\"\u{1f600}"
+
+# Block strings are dedented by the closing delimiter's column.
+description:
+	'''
+	A block string keeps its line breaks.
+	The leading tab of each line is stripped,
+	because the closing delimiter sits at one tab.
+	'''
+
+# Numbers: int and float are different types.
+replicas: 3
+ratio: 0.75
+budget: 1_000_000
+mask: 0b1010_1100
+permissions: 0o644
+color: 0xFF8800
+flags: 0x00FF
+limit: infinity
+floor: -infinity
+
+# Booleans and null.
+drained: false
+owner: null
+
+# Durations: exact, in h, m, s, ms, us, and ns.
+retry-after: 1m30s
+
+# Arrays. A comma or a line break separates items.
+labels: ['prod', 'eu-west', 'canary']
+matrix: [[1, 2], [3, 4]]
+mixed: [1, 'two', true, null]
+
+# Objects. The top-level object needs no braces.
+pool: {
+	min: 2
+	max: 16
+}
+
+# Records in arrays. Braces are required, and that is deliberate.
+maintainers: [
+	{name: 'Sindre Sorhus', email: 'sindresorhus@gmail.com'}
+	{name: 'Random Person', email: 'person@example.com'}
+]
+
+# Line comments, and block comments, wherever whitespace may go.
+# Inline objects and one-line braced documents work too:
+healthcheck: {path: '/health', interval: 10s, grace: 1.5s}

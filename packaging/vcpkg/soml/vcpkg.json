@@ -1,0 +1,16 @@
+{
+	"name": "soml",
+	"version": "0.1.0",
+	"description": "A C++26 reader and writer for SOML, a config format for humans",
+	"license": "MIT",
+	"dependencies": [
+		{
+			"name": "vcpkg-cmake",
+			"host": true
+		},
+		{
+			"name": "vcpkg-cmake-config",
+			"host": true
+		}
+	]
+}
